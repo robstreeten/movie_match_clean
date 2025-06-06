@@ -44,6 +44,8 @@ async def match_movies(request: Request):
 
     # Step 2: Extract titles
     titles = [item["title"] for item in all_movies if "title" in item][:150]
+    print("First 5 titles:", titles[:5])
+    print("Search term:", search_term)
     if not titles:
         return {"matches": []}
 
