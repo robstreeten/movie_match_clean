@@ -17,7 +17,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/static", StaticFiles(directory="frontend/build/static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_index():
+    return FileResponse("frontend/build/index.html")
+
 
 @app.get("/test")
 async def test():
