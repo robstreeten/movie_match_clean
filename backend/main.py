@@ -43,7 +43,7 @@ async def match_movies(request: Request):
         all_movies = response.json()
 
     # Step 2: Extract titles
-    titles = [item["title"] for item in all_movies if "title" in item]
+    titles = [item["title"] for item in all_movies if "title" in item][:150]
     if not titles:
         return {"matches": []}
 
