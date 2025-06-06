@@ -20,7 +20,7 @@ app.add_middleware(
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-app.mount("/static", StaticFiles(directory="frontend/build/static"), name="static")
+app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
