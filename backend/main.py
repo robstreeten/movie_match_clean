@@ -60,6 +60,9 @@ Respond in this format:
 ]
 """
 
+print("Number of titles fetched:", len(titles))
+print("Example titles:", titles[:5])
+
     completion = openai.ChatCompletion.create(
         model="gpt-4",
         messages=[
