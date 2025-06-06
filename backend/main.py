@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import openai
 import httpx
@@ -9,6 +9,7 @@ import json
 
 app = FastAPI()
 
+# CORS for frontend/backend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,9 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-
+# Serve static frontend
 app.mount("/", StaticFiles(directory="frontend/build", html=True), name="static")
 
 @app.get("/", response_class=HTMLResponse)
@@ -31,50 +30,52 @@ async def serve_index():
 async def test():
     return {"status": "Backend is working"}
 
+
 @app.post("/match-movies")
 async def match_movies(request: Request):
     data = await request.json()
     search_term = data.get("searchTerm")
 
+    # Step 1: Fetch the movie list
     dds_api_url = "https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents"
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-
     async with httpx.AsyncClient() as client:
         response = await client.get(dds_api_url)
         all_movies = response.json()
 
+    # Step 2: Extract titles
     titles = [item["title"] for item in all_movies if "title" in item]
+    if not titles:
+        return {"matches": []}
 
+    # Step 3: Build prompt
     prompt = f"""
-You are a movie classification assistant. A user has entered the term: "{search_term}".
+You are a helpful assistant. A user is searching for movies related to: "{search_term}".
 
-Here is a list of movie titles:
+From the list below, identify only the movies that strongly relate to the topic. For each match, give a one-sentence reason.
+
+Movies:
 {chr(10).join(titles)}
 
-From this list, return only the titles that clearly relate to the term, with a 1-sentence reason per match. Be strict—only return strong matches.
-
-Respond in this format:
+Respond ONLY in this JSON format:
 [
-  {{"title": "...", "reason": "..."}},
+  {{ "title": "...", "reason": "..." }},
   ...
 ]
 """
 
-print("Number of titles fetched:", len(titles))
-print("Example titles:", titles[:5])
-
-    completion = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.5,
-    )
-
+    # Step 4: OpenAI call
+    openai.api_key = os.getenv("OPENAI_API_KEY")
     try:
-        result = json.loads(completion.choices[0].message.content.strip())
-    except:
-        result = []
-
-    return {"matches": result}
+        completion = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You classify movie titles based on search topics."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+        )
+        parsed = json.loads(completion.choices[0].message.content.strip())
+        return {"matches": parsed}
+    except Exception as e:
+        print("OpenAI error:", e)
+        return {"matches": []}
