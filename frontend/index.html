@@ -1,42 +1,55 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Movie Matcher</title>
-</head>
-<body>
-  <h1>Movie Matcher</h1>
-  <input id="term" type="text" placeholder="Search term (e.g. war, queen, etc.)"/>
-  <button onclick="matchMovies()">Match</button>
-  <div id="results"></div>
+<script>
+  async function matchMovies() {
+    const term = document.getElementById('term').value;
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = 'Loading...';
 
-  <script>
-    async function matchMovies() {
-      const term = document.getElementById('term').value;
-      const resultsDiv = document.getElementById('results');
-      resultsDiv.innerHTML = 'Loading...';
+    try {
+      // First fetch the titles
+      const titlesRes = await fetch('/titles');
+      const titlesData = await titlesRes.json();
+      const titles = titlesData.sample || [];
 
-      try {
-        const res = await fetch('/match-movies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ searchTerm: term })
-        });
-        const data = await res.json();
+      // Build the prompt manually
+      const prompt = `
+You're a helpful assistant. A user is looking for movies related to: "${term}".
 
-        if (data.matches && data.matches.length > 0) {
-          resultsDiv.innerHTML = data.matches.map(
-            m => `<p><strong>${m.title}</strong><br/>${m.reason}</p>`
-          ).join('');
-        } else {
-          resultsDiv.innerHTML = 'No strong matches found.';
-        }
-      } catch (err) {
-        console.error(err);
-        resultsDiv.innerHTML = 'Error contacting server.';
+From this list, choose any strong matches and explain in one sentence why they relate.
+
+Movies:
+${titles.join('\n')}
+
+Return your answer ONLY in this JSON format:
+[
+  { "title": "...", "reason": "..." },
+  ...
+]`;
+
+      // Show the prompt on screen before sending it
+      resultsDiv.innerHTML = `
+        <h3>Prompt being sent to GPT:</h3>
+        <pre>${prompt}</pre>
+        <p>Sending request...</p>
+      `;
+
+      // Now send it to the backend
+      const res = await fetch('/match-movies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ searchTerm: term })
+      });
+      const data = await res.json();
+
+      if (data.matches && data.matches.length > 0) {
+        resultsDiv.innerHTML = data.matches.map(
+          m => `<p><strong>${m.title}</strong><br/>${m.reason}</p>`
+        ).join('');
+      } else {
+        resultsDiv.innerHTML += '<p><em>No strong matches found.</em></p>';
       }
+    } catch (err) {
+      console.error(err);
+      resultsDiv.innerHTML = 'Error contacting server.';
     }
-  </script>
-</body>
-</html>
+  }
+</script>
