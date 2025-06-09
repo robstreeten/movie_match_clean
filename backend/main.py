@@ -42,11 +42,15 @@ async def get_titles():
             response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
             response.raise_for_status()
             data = response.json()
-            titles = [item["title"] for item in data if "title" in item]
+
+            hits = data.get("hits", [])
+            titles = [item.get("title") for item in hits if "title" in item]
+
             return {
                 "count": len(titles),
                 "sample": titles[:10]
             }
     except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        return {"error": str(e)}
+
 
