@@ -1,11 +1,16 @@
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import httpx
+from fastapi.responses import FileResponse, JSONResponse
+import os
+import requests
+import openai
+import json
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
 
-# Allow local dev + production access
+# Allow frontend to call backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,62 +19,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/raw")
-async def get_raw():
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
-            response.raise_for_status()
-            data = response.json()
-
-            # Show keys at the top level and 3 items from any list inside
-            return {
-                "top_level_keys": list(data.keys()),
-                "example_value": data.get("content", [])[:3] if isinstance(data.get("content", []), list) else "No list under 'content'"
-            }
-    except Exception as e:
-        return {"error": str(e)}
-
-
 @app.get("/titles")
-async def get_titles():
+def get_titles():
+    url = "https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents"
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
-            response.raise_for_status()
-            data = response.json()
-
-            hits = data.get("hits", [])
-            titles = [item.get("title") for item in hits if "title" in item]
-
-            return {
-                "count": len(titles),
-                "sample": titles[:10]
-            }
+        response = requests.get(url)
+        data = response.json()
+        titles = [hit.get("title", "") for hit in data.get("hits", []) if "title" in hit]
+        return {
+            "count": len(titles),
+            "sample": titles[:100]
+        }
     except Exception as e:
-        return {"error": str(e)}
-
-from fastapi import Request
-import openai
-import os
-import json
+        return {
+            "error": str(e),
+            "count": 0,
+            "sample": []
+        }
 
 @app.post("/match-movies")
 async def match_movies(request: Request):
-    try:
-        body = await request.json()
-        search_term = body.get("searchTerm", "")
+    body = await request.json()
+    search_term = body.get("searchTerm", "")
+    print("Search Term:", search_term)
 
-        # Fetch movie titles
-        async with httpx.AsyncClient() as client:
-            response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
-            response.raise_for_status()
-            data = response.json()
-            hits = data.get("hits", [])
-            titles = [item.get("title") for item in hits if "title" in item][:100]
+    # Get movie titles
+    api_response = get_titles()
+    titles = api_response.get("sample", [])
+    print("Titles being sent to GPT:", titles)
 
-        # Build GPT prompt
-        prompt = f"""
+    prompt = f"""
 You're a helpful assistant. A user is looking for movies related to: "{search_term}".
 
 From this list, choose any strong matches and explain in one sentence why they relate.
@@ -84,35 +63,31 @@ Return your answer ONLY in this JSON format:
 ]
 """
 
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+    try:
         response = openai.ChatCompletion.create(
             model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a movie classification assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
+            messages=[{
+                "role": "user",
+                "content": prompt
+            }],
+            temperature=0.7
         )
-
         gpt_content = response.choices[0].message.content.strip()
-print("GPT Raw Response:\n", gpt_content)
+        print("GPT Raw Response:\n", gpt_content)
 
-try:
-    matches = json.loads(gpt_content)
-except json.JSONDecodeError as e:
-    print("JSON parsing failed:", str(e))
-    matches = []
+        try:
+            matches = json.loads(gpt_content)
+        except json.JSONDecodeError as e:
+            print("JSON parsing failed:", str(e))
+            matches = []
 
-
-        return {"matches": matches}
+        return JSONResponse(content={"matches": matches})
 
     except Exception as e:
-        return {"error": str(e)}
-
-from fastapi.responses import FileResponse
-import os
+        print("OpenAI Error:", str(e))
+        return JSONResponse(content={"matches": [], "error": str(e)}, status_code=500)
 
 @app.get("/")
 def serve_index():
-    file_path = os.path.join("frontend", "index.html")
-    return FileResponse(file_path)
+    return FileResponse(os.path.join("frontend", "index.html"))
+
