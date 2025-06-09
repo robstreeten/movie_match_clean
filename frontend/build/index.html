@@ -2,11 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Movie Matcher</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 <body>
-  <div id="root"></div>
-  <script src="main.js"></script>
+  <h1>Movie Matcher</h1>
+  <input id="term" type="text" placeholder="Search term (e.g. war, queen, etc.)"/>
+  <button onclick="matchMovies()">Match</button>
+  <div id="results"></div>
+
+  <script>
+    async function matchMovies() {
+      const term = document.getElementById('term').value;
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = 'Loading...';
+
+      try {
+        const res = await fetch('/match-movies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ searchTerm: term })
+        });
+        const data = await res.json();
+
+        if (data.matches && data.matches.length > 0) {
+          resultsDiv.innerHTML = data.matches.map(
+            m => `<p><strong>${m.title}</strong><br/>${m.reason}</p>`
+          ).join('');
+        } else {
+          resultsDiv.innerHTML = 'No strong matches found.';
+        }
+      } catch (err) {
+        console.error(err);
+        resultsDiv.innerHTML = 'Error contacting server.';
+      }
+    }
+  </script>
 </body>
 </html>
