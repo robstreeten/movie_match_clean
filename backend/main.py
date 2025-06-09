@@ -95,7 +95,14 @@ Return your answer ONLY in this JSON format:
         )
 
         gpt_content = response.choices[0].message.content.strip()
-        matches = json.loads(gpt_content)
+print("GPT Raw Response:\n", gpt_content)
+
+try:
+    matches = json.loads(gpt_content)
+except json.JSONDecodeError as e:
+    print("JSON parsing failed:", str(e))
+    matches = []
+
 
         return {"matches": matches}
 
