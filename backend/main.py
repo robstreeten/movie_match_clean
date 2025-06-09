@@ -18,6 +18,17 @@ app.add_middleware(
 def root():
     return {"message": "API is up"}
 
+@app.get("/raw")
+async def get_raw():
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
+            response.raise_for_status()
+            data = response.json()
+            return data[:3]  # return first 3 items for inspection
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/titles")
 async def get_titles():
     try:
