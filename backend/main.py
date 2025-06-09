@@ -14,10 +14,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def root():
-    return {"message": "API is up"}
-
 @app.get("/raw")
 async def get_raw():
     try:
@@ -106,3 +102,10 @@ Return your answer ONLY in this JSON format:
     except Exception as e:
         return {"error": str(e)}
 
+from fastapi.responses import FileResponse
+import os
+
+@app.get("/")
+def serve_index():
+    file_path = os.path.join("frontend", "index.html")
+    return FileResponse(file_path)
