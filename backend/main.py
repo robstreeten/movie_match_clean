@@ -26,6 +26,23 @@ async def serve_index():
     return FileResponse("frontend/build/index.html")
 
 
+@app.get("/titles")
+async def get_titles():
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
+            response.raise_for_status()
+            data = response.json()
+            titles = [item["title"] for item in data if "title" in item]
+            return {
+                "count": len(titles),
+                "sample": titles[:10]  # Show first 10 titles
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/test")
 async def test():
     return {"status": "Backend is working"}
