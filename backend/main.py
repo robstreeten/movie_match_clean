@@ -25,9 +25,15 @@ async def get_raw():
             response = await client.get("https://dds-apife.filmbankconnect.com/arts/catalogue/v1/all-contents")
             response.raise_for_status()
             data = response.json()
-            return data[:3]  # return first 3 items for inspection
+
+            # Show keys at the top level and 3 items from any list inside
+            return {
+                "top_level_keys": list(data.keys()),
+                "example_value": data.get("content", [])[:3] if isinstance(data.get("content", []), list) else "No list under 'content'"
+            }
     except Exception as e:
         return {"error": str(e)}
+
 
 @app.get("/titles")
 async def get_titles():
